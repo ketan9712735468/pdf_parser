@@ -55,23 +55,35 @@ class PdfView(APIView):
         return '\n'.join(content)
 
 
-    def extract_contact_info(self, text):
+    def extract_contact_info(self, data):
         # Regular expressions to find name, phone number, and email address
-        name_pattern = re.compile(r'([A-Z][a-z]+(?: [A-Z][a-z]+)*)')
+        name_pattern = re.compile(r'\b[A-Z][A-Z\s]+\b')
         phone_pattern = re.compile(r'(?:(?:\+?\d{1,3})?(?:-|\s)?)?\d{10}(?:\s?/\s?\d{10})?')
         email_pattern = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
+        address_patterns = [
+            r'\b\d{1,3}\s+[A-Z][a-z]+\s+[A-Za-z]+\b',                   # e.g., 123 Street Name City
+            r'Current Address:\s*(.*)',                                 # e.g., Current Address: Some Address
+            r'Address:\s*(.*)',                                         # e.g., Address: Some Address
+            r'\b[A-Z][A-Za-z\s,-]+\d{5}\b',                             # e.g., Address with postal code
+            r'[A-Z]-\d{1,3}\s+[A-Za-z0-9\s,.-]+'                        # e.g., A-123 Street Name City
+        ]
 
         # Find matches
-        name_matches = name_pattern.findall(text)
-        phone_matches = phone_pattern.findall(text)
-        email_matches = email_pattern.findall(text)
+        name_matches = name_pattern.findall(data)
+        phone_matches = phone_pattern.findall(data)
+        email_matches = email_pattern.findall(data)
+        # Extract addresses from the text data
+        addresses_matches = []
+        for pattern in address_patterns:
+            addresses_matches.extend(re.findall(pattern, data))
 
         # Assuming the first match found is the primary one
-        name = name_matches[0] if name_matches else None
+        name = name_matches[0] + name_matches[1] if name_matches else None
         phone = phone_matches[0] if phone_matches else None
         email = email_matches[0] if email_matches else None
+        addresses = addresses_matches[0] if addresses_matches else None
 
-        return name, phone, email
+        return name, phone, email, addresses
 
     def post(self, request):
         url = request.data.get('url', None)
@@ -82,13 +94,14 @@ class PdfView(APIView):
             data = self.read_doc(url)
 
         try:
-            name, phone, email = self.extract_contact_info(data)
+            name, phone, email, addresses = self.extract_contact_info(data)
         except Exception as e:
             print('Exception is ::>>>', e)
         response_data = {
             "name": name,
             "phone": phone,
             "email": email,
+            "addresses": addresses,
             "original_content": data
         }
         return Response(response_data)
