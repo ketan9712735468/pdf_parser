@@ -68,12 +68,14 @@ class PdfView(APIView):
             r'[A-Z]-\d{1,3}\s+[A-Za-z0-9\s,.-]+'                        # e.g., A-123 Street Name City
         ]
         dob_pattern = re.compile(r'\b(?:\d{1,2}[-/]\w{3,9}[-/]\d{2,4}|\d{1,2}/\d{1,2}/\d{2,4})\b')
+        education_pattern = re.compile(r'Education\n(.+?)(?=\n\d{4}|$)', re.DOTALL)
 
         # Find matches
         name_matches = name_pattern.findall(data)
         phone_matches = phone_pattern.findall(data)
         email_matches = email_pattern.findall(data)
         dob_matches = dob_pattern.findall(data)
+        education_matches = education_pattern.findall(data)
         addresses_matches = []
         for pattern in address_patterns:
             addresses_matches.extend(re.findall(pattern, data))
@@ -84,8 +86,9 @@ class PdfView(APIView):
         email = email_matches[0] if email_matches else None
         dob = dob_matches[0] if dob_matches else None
         addresses = addresses_matches[0] if addresses_matches else None
+        education = education_matches[0] if education_matches else None
 
-        return name, phone, email, addresses, dob
+        return name, phone, email, addresses, dob, education
 
     def post(self, request):
         url = request.data.get('url', None)
@@ -96,7 +99,7 @@ class PdfView(APIView):
             data = self.read_doc(url)
 
         try:
-            name, phone, email, addresses, dob = self.extract_contact_info(data)
+            name, phone, email, addresses, dob, education = self.extract_contact_info(data)
         except Exception as e:
             print('Exception is ::>>>', e)
         response_data = {
@@ -105,6 +108,7 @@ class PdfView(APIView):
             "email": email,
             "addresses": addresses,
             "date_of_birth": dob,
+            "education": education,
             "original_content": data
         }
         return Response(response_data)
